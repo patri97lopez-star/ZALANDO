@@ -1,0 +1,6 @@
+{
+  "name": "Zalando Incident Automator",
+  "description": "Herramienta inteligente para la clasificación y registro automático de incidencias de pedidos de Zalando.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
