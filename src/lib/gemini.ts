@@ -4,9 +4,11 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export interface IncidentData {
   orderId: string;
+  customerEmail: string;
   category: "Devolución" | "Cambio de Talla" | "Entrega Fallida" | "Facturación" | "Otro";
   items: string[];
   urgency: "Baja" | "Media" | "Alta";
+  severity: "Leve" | "Grave" | "Muy Grave";
   sentiment: "Frustrado" | "Neutral" | "Satisfecho";
   summary: string;
   missingInfo: string[];
@@ -25,12 +27,13 @@ Texto: "${text}"` }]
         }
       ],
       config: {
-        systemInstruction: "Eres un experto en soporte al cliente de Zalando. Tu tarea es clasificar incidencias y extraer datos clave. Si falta el número de pedido, indícalo en 'missingInfo'. El número de pedido suele tener 10-12 dígitos o empezar por #. Devuelve SIEMPRE un JSON válido.",
+        systemInstruction: "Eres un experto en soporte al cliente de Zalando. Tu tarea es clasificar incidencias y extraer datos clave. Extrae el email del cliente si aparece. Determina la gravedad (severity) basándote en el impacto para el cliente y el negocio. Si falta el número de pedido o el email, indícalo en 'missingInfo'. Devuelve SIEMPRE un JSON válido.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
             orderId: { type: Type.STRING, description: "Número de pedido (ej: #1234567890). Si no hay, poner 'No detectado'." },
+            customerEmail: { type: Type.STRING, description: "Email del cliente si se detecta. Si no, poner 'No detectado'." },
             category: { 
               type: Type.STRING, 
               enum: ["Devolución", "Cambio de Talla", "Entrega Fallida", "Facturación", "Otro"],
@@ -46,6 +49,11 @@ Texto: "${text}"` }]
               enum: ["Baja", "Media", "Alta"],
               description: "Nivel de urgencia detectado." 
             },
+            severity: { 
+              type: Type.STRING, 
+              enum: ["Leve", "Grave", "Muy Grave"],
+              description: "Gravedad de la incidencia." 
+            },
             sentiment: { 
               type: Type.STRING, 
               enum: ["Frustrado", "Neutral", "Satisfecho"],
@@ -55,10 +63,10 @@ Texto: "${text}"` }]
             missingInfo: { 
               type: Type.ARRAY, 
               items: { type: Type.STRING },
-              description: "Lista de datos que faltan para procesar la incidencia (ej: 'Número de pedido', 'Talla deseada')." 
+              description: "Lista de datos que faltan para procesar la incidencia (ej: 'Número de pedido', 'Email del cliente')." 
             }
           },
-          required: ["orderId", "category", "items", "urgency", "sentiment", "summary", "missingInfo"]
+          required: ["orderId", "customerEmail", "category", "items", "urgency", "severity", "sentiment", "summary", "missingInfo"]
         }
       }
     });

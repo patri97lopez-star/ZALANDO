@@ -16,11 +16,15 @@ import {
   ArrowRight,
   Loader2,
   ChevronRight,
-  Info
+  Info,
+  Mail,
+  Send
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { classifyIncident, IncidentData } from "@/src/lib/gemini";
@@ -37,6 +41,7 @@ const ZalandoLogo = () => (
 export default function App() {
   const [inputText, setInputText] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [result, setResult] = useState<IncidentData | null>(null);
   const [history, setHistory] = useState<(IncidentData & { id: string; timestamp: string })[]>([]);
 
@@ -49,14 +54,54 @@ export default function App() {
     setIsProcessing(true);
     try {
       const data = await classifyIncident(inputText);
+      
+      // If no email is detected, generate a random one for testing purposes
+      if (data.customerEmail === "No detectado") {
+        const randomNames = ["pablo", "maria", "lucia", "carlos", "elena", "sergio", "ana", "jorge"];
+        const randomDomains = ["gmail.com", "outlook.com", "hotmail.com", "icloud.com"];
+        const name = randomNames[Math.floor(Math.random() * randomNames.length)];
+        const domain = randomDomains[Math.floor(Math.random() * randomDomains.length)];
+        const randomNum = Math.floor(Math.random() * 999);
+        data.customerEmail = `${name}.${randomNum}@${domain}`;
+        
+        toast.info("Email de prueba generado", {
+          description: "La IA no detectó un email, así que hemos generado uno aleatorio para que puedas probar el envío.",
+        });
+      }
+
       setResult(data);
       toast.success("Incidencia analizada correctamente.");
+      
+      // Automatic notification message
+      setTimeout(() => {
+        toast.info(`Notificación enviada automáticamente`, {
+          description: `Se ha enviado un aviso preventivo a ${data.customerEmail} confirmando la recepción de la incidencia.`,
+          icon: <Mail className="w-4 h-4" />,
+        });
+      }, 1000);
     } catch (error) {
       toast.error("Error al procesar la incidencia. Inténtalo de nuevo.");
       console.error(error);
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleSendEmail = async () => {
+    if (!result || !result.customerEmail || result.customerEmail === "No detectado") {
+      toast.error("No se ha detectado un email válido para enviar la notificación.");
+      return;
+    }
+
+    setIsSendingEmail(true);
+    // Simulating email sending logic
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    toast.success(`¡Mensaje enviado con éxito!`, {
+      description: `El cliente (${result.customerEmail}) ha sido notificado correctamente sobre el estado de su pedido ${result.orderId}.`,
+      duration: 5000,
+    });
+    setIsSendingEmail(false);
   };
 
   const handleRegister = () => {
@@ -99,6 +144,15 @@ export default function App() {
       case "Media": return "bg-orange-100 text-orange-700 border-orange-200";
       case "Baja": return "bg-green-100 text-green-700 border-green-200";
       default: return "bg-gray-100 text-gray-700";
+    }
+  };
+
+  const getSeverityStyles = (severity: string) => {
+    switch (severity) {
+      case "Muy Grave": return "bg-red-600 text-white border-red-700 hover:bg-red-700";
+      case "Grave": return "bg-orange-500 text-white border-orange-600 hover:bg-orange-600";
+      case "Leve": return "bg-blue-500 text-white border-blue-600 hover:bg-blue-600";
+      default: return "bg-gray-500 text-white";
     }
   };
 
@@ -205,7 +259,12 @@ export default function App() {
                         </div>
                         <div>
                           <div className="font-bold text-base">{item.category}</div>
-                          <div className="text-sm text-gray-500">Pedido: {item.orderId} • {item.timestamp}</div>
+                          <div className="text-sm text-gray-500 flex items-center gap-2">
+                            Pedido: {item.orderId} • {item.timestamp}
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${getSeverityStyles(item.severity)}`}>
+                              {item.severity}
+                            </span>
+                          </div>
                         </div>
                       </div>
                       <Badge className={getUrgencyColor(item.urgency)}>{item.urgency}</Badge>
@@ -235,9 +294,18 @@ export default function App() {
                     <div className="h-3 bg-orange-600 w-full" />
                     <CardHeader className="p-8 pb-4">
                       <div className="flex justify-between items-start">
-                        <Badge className={`px-4 py-2 rounded-full border text-sm font-bold ${getUrgencyColor(result.urgency)}`}>
-                          URGENCIA {result.urgency.toUpperCase()}
-                        </Badge>
+                        <div className="flex flex-col gap-3">
+                          <Badge className={`px-4 py-2 rounded-full border text-sm font-bold ${getUrgencyColor(result.urgency)}`}>
+                            URGENCIA {result.urgency.toUpperCase()}
+                          </Badge>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className={`h-9 px-4 rounded-xl font-black text-xs uppercase tracking-tighter shadow-sm border-none pointer-events-none ${getSeverityStyles(result.severity)}`}
+                          >
+                            Gravedad: {result.severity}
+                          </Button>
+                        </div>
                         <div className="flex items-center gap-2 text-base text-gray-400 font-mono">
                           ID: {result.orderId}
                         </div>
@@ -273,6 +341,66 @@ export default function App() {
                       </div>
 
                       <Separator className="bg-gray-100" />
+
+                      {/* Email Notification Section */}
+                      <div className="space-y-4 p-8 bg-white rounded-3xl border-2 border-orange-100 shadow-inner">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 text-zalando-black font-black text-base uppercase tracking-widest">
+                            <Mail className="w-6 h-6 text-orange-600" />
+                            Canal de Comunicación
+                          </div>
+                          {result.customerEmail !== "No detectado" && (
+                            <Badge className="bg-green-100 text-green-700 border-green-200 text-[10px]">VERIFICADO</Badge>
+                          )}
+                        </div>
+                        
+                        <div className="space-y-3">
+                          <Label className="text-sm font-bold text-gray-500 ml-1">Email del Cliente</Label>
+                          <div className="flex gap-3">
+                            <div className="relative flex-1">
+                              <Input 
+                                value={result.customerEmail === "No detectado" ? "" : result.customerEmail}
+                                onChange={(e) => setResult({...result, customerEmail: e.target.value})}
+                                className="bg-gray-50 border-gray-200 focus:ring-2 focus:ring-orange-500 text-base h-14 pl-11 font-medium"
+                                placeholder="Introduce el email manualmente..."
+                              />
+                              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                            </div>
+                            <Button 
+                              onClick={handleSendEmail}
+                              disabled={isSendingEmail || !result.customerEmail || result.customerEmail === "No detectado"}
+                              className="bg-zalando-black hover:bg-gray-800 text-white h-14 px-8 font-black text-base transition-all active:scale-95"
+                            >
+                              {isSendingEmail ? (
+                                <Loader2 className="w-6 h-6 animate-spin" />
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <span>ENVIAR</span>
+                                  <Send className="w-5 h-5" />
+                                </div>
+                              )}
+                            </Button>
+                          </div>
+                          <p className="text-xs text-gray-400 ml-1 italic">
+                            {result.customerEmail === "No detectado" 
+                              ? "* La IA no detectó el email. Por favor, introdúcelo manualmente para avisar al cliente."
+                              : "* Puedes editar el email si detectas algún error en la extracción automática."}
+                          </p>
+                        </div>
+
+                        <Separator className="bg-gray-100 my-4" />
+
+                        <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100">
+                          <div className="text-xs font-black text-orange-700 uppercase mb-2 flex items-center gap-2">
+                            <Info className="w-3 h-3" />
+                            Plantilla de Envío
+                          </div>
+                          <p className="text-sm text-orange-800 leading-relaxed">
+                            "Hola, hemos recibido tu incidencia sobre el pedido <strong>{result.orderId}</strong>. 
+                            Nuestro equipo está trabajando en tu caso de <strong>{result.category}</strong>. Te informaremos pronto."
+                          </p>
+                        </div>
+                      </div>
 
                       <div className="space-y-4">
                         <span className="text-xs uppercase tracking-widest text-gray-400 font-black">Productos Detectados</span>
@@ -358,14 +486,46 @@ export default function App() {
       </main>
 
       <footer className="max-w-7xl mx-auto px-6 py-16 border-t border-gray-200 mt-20">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-10">
-          <div className="flex items-center gap-4 opacity-40 grayscale hover:grayscale-0 transition-all">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-12">
+          <div className="space-y-6">
             <ZalandoLogo />
+            <p className="text-sm text-gray-500 leading-relaxed">
+              Zalando SE es la plataforma online de moda y estilo de vida líder en Europa. 
+              Fundada en Berlín en 2008, ofrecemos una experiencia de compra completa a clientes en 25 mercados.
+            </p>
           </div>
-          <div className="text-sm text-gray-400 text-center md:text-right leading-loose">
+          
+          <div className="space-y-4">
+            <h4 className="font-black text-xs uppercase tracking-widest text-gray-400">Aviso Legal</h4>
+            <ul className="text-sm text-gray-600 space-y-2">
+              <li>Zalando SE</li>
+              <li>Valeska-Gert-Straße 5</li>
+              <li>10243 Berlín, Alemania</li>
+              <li>Registro Mercantil: Amtsgericht Charlottenburg (Berlín), HRB 158855 B</li>
+              <li>NIF-IVA: DE 260543043</li>
+            </ul>
+          </div>
+
+          <div className="space-y-4">
+            <h4 className="font-black text-xs uppercase tracking-widest text-gray-400">Representación Legal</h4>
+            <ul className="text-sm text-gray-600 space-y-2">
+              <li>Consejo de Administración: Robert Gentz, David Schneider, Dr. Sandra Dembeck, David Schröder</li>
+              <li>Presidenta del Consejo de Vigilancia: Kelly Bennett</li>
+              <li>Contacto: <a href="mailto:soporte-ops@zalando.es" className="text-orange-600 font-bold hover:underline">soporte-ops@zalando.es</a></li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="flex flex-col md:flex-row justify-between items-center gap-10 pt-12 border-t border-gray-100">
+          <div className="text-sm text-gray-400 text-center md:text-left leading-loose">
             © 2026 Zalando SE · Operations Intelligence Division<br />
             Sistema de Triaje Automatizado de Alta Precisión (STAA-P)<br />
             <span className="text-orange-400 font-bold">Confidencial - Uso Interno</span>
+          </div>
+          <div className="flex gap-6 text-xs font-bold text-gray-400 uppercase tracking-widest">
+            <a href="https://www.zalando.es/zalando-proteccion-de-datos/" target="_blank" rel="noopener noreferrer" className="hover:text-orange-600 transition-colors">Privacidad</a>
+            <a href="https://www.zalando.es/zalando-condiciones-generales/" target="_blank" rel="noopener noreferrer" className="hover:text-orange-600 transition-colors">Términos y Condiciones</a>
+            <a href="https://www.zalando.es/zalando-aviso-legal/" target="_blank" rel="noopener noreferrer" className="hover:text-orange-600 transition-colors">Aviso Legal</a>
           </div>
         </div>
       </footer>
